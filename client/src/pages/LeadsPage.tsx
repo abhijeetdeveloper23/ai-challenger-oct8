@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
+  ChevronDown,
   Columns3,
   Copy,
   Download,
   EyeOff,
-  Gauge,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Star,
   UserSearch,
-  Wallet,
   X,
 } from "lucide-react";
 import { useLeads } from "../hooks/useLeads";
@@ -24,7 +23,6 @@ import { QuickFilters, countActiveFilters } from "../components/QuickFilters";
 import { useToast } from "../components/Toast";
 import { getExportUrl } from "../services/api";
 import { downloadLeadsCsv } from "../utils/csv";
-import { getRevenue } from "../utils/revenue";
 import {
   setLastSearchId,
   setLeadStatuses,
@@ -44,10 +42,10 @@ const SORTS = [
 
 const DEFAULT_COLUMNS: Record<string, boolean> = {
   industry: true,
-  address: true,
+  address: false,
   phone: true,
   website: true,
-  rating: true,
+  rating: false,
   revenue: true,
   score: true,
 };
@@ -260,25 +258,26 @@ export function LeadsPage() {
   const lastShown = Math.min((data?.page ?? 1) * PAGE_SIZE, total);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 pb-28 sm:px-6">
-      {/* Title + primary actions */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-8 pb-28 sm:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Search results</h1>
-          <p className="mt-0.5 text-sm text-ink-muted" aria-live="polite">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
+            Results
+          </h1>
+          <p className="mt-1 min-h-[1.25rem] text-sm text-ink-muted" aria-live="polite">
             {loading && !data
               ? "Loading…"
-              : `${total} lead${total === 1 ? "" : "s"}${activeCount ? " match your filters" : ""}`}
-            {summary && total > 0
-              ? ` · ${summary.hot} hot · ${summary.high} high`
-              : ""}
-            {searchMeta.product
-              ? ` · offer: ${searchMeta.product}`
-              : ""}
-            {searchMeta.providers?.length
-              ? ` · source: ${searchMeta.providers.join(" + ")}`
-              : ""}
-            {searchMeta.isDemo ? " · sample data" : ""}
+              : `${total} lead${total === 1 ? "" : "s"}`}
+            {summary && total > 0 ? ` · ${summary.hot} hot · ${summary.high} high` : ""}
+            {searchMeta.product ? ` · ${searchMeta.product}` : ""}
+            {total > 0 && total < 50 && activeCount === 0 ? (
+              <>
+                {" · "}
+                <Link to="/" className="text-accent no-underline hover:underline">
+                  broaden search
+                </Link>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -289,181 +288,152 @@ export function LeadsPage() {
             href={exportHref}
             className="btn-primary"
             aria-disabled={total === 0}
-            title="Downloads every lead matching the current filters (up to 1,000)"
+            title="Download matching leads as CSV"
           >
             <Download className="h-4 w-4" aria-hidden />
-            Export {total > 0 ? Math.min(total, 1000) : ""} as CSV
+            Export CSV
           </a>
         </div>
       </div>
 
-      {total > 0 && total < 50 && activeCount === 0 && (
-        <div className="mb-4 flex flex-col gap-2 rounded-lg border border-border bg-warm-soft px-4 py-3 text-sm text-ink sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            Only <strong>{total}</strong> leads found. We recommend a broader
-            industry or nearby city for a larger pool.
-          </span>
-          <Link to="/" className="btn-primary shrink-0 text-xs">
-            Find more leads
-          </Link>
-        </div>
-      )}
+      {/* Toolbar in normal flow — filters expand below, never overlay the table */}
+      <div className="mt-6 border-y border-border/70">
+        <div className="flex min-h-[3.25rem] flex-col justify-center gap-2 py-2 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search
+              className="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+              aria-hidden
+            />
+            <input
+              type="search"
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              placeholder="Search by name, category, city…"
+              aria-label="Search results"
+              className="w-full border-0 bg-transparent py-1.5 pl-7 text-sm text-ink outline-none placeholder:text-ink-muted"
+            />
+          </div>
 
-      {/* Toolbar — mirrors ref: search, filters, revenue, scoring, columns */}
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="relative min-w-[200px] flex-1">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
-            aria-hidden
-          />
-          <input
-            type="search"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            placeholder="Search these results by name, category or city"
-            aria-label="Search results"
-            className="w-full rounded-lg border border-border bg-white py-2 pl-9 pr-3 text-sm text-ink outline-none focus:border-accent"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm text-ink-muted">
-          <span className="shrink-0">Sort</span>
-          <select
-            value={filters.sort ?? "score"}
-            onChange={(e) => updateFilters({ sort: e.target.value })}
-            className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink outline-none focus:border-accent"
-          >
-            {SORTS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => setShowFilters((v) => !v)}
-          aria-expanded={showFilters}
-          className="btn-secondary"
-        >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          Filters
-        </button>
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowColumns((v) => !v)}
-            aria-expanded={showColumns}
-            className="btn-secondary"
-          >
-            <Columns3 className="h-4 w-4" aria-hidden />
-            Table settings
-          </button>
-          {showColumns && (
-            <div
-              role="menu"
-              className="absolute right-0 z-20 mt-1 w-52 rounded-lg border border-border bg-white p-2 shadow-lg"
+          <div className="flex flex-wrap items-center gap-1 lg:shrink-0">
+            <label className="relative inline-flex items-center">
+              <select
+                value={filters.sort ?? "score"}
+                onChange={(e) => updateFilters({ sort: e.target.value })}
+                aria-label="Sort"
+                className="appearance-none rounded-lg border-0 bg-transparent py-1.5 pl-2 pr-7 text-sm text-ink-muted outline-none hover:text-ink"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className="pointer-events-none absolute right-0 h-3.5 w-3.5 text-ink-muted"
+                aria-hidden
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowColumns(false);
+                setShowFilters((v) => !v);
+              }}
+              aria-expanded={showFilters}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm ${
+                showFilters || activeCount > 0
+                  ? "bg-accent-soft font-medium text-accent"
+                  : "text-ink-muted hover:text-ink"
+              }`}
             >
-              {Object.keys(DEFAULT_COLUMNS).map((key) => (
-                <label
-                  key={key}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink hover:bg-surface"
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+              Filters{activeCount > 0 ? ` (${activeCount})` : ""}
+            </button>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFilters(false);
+                  setShowColumns((v) => !v);
+                }}
+                aria-expanded={showColumns}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-ink-muted hover:text-ink"
+              >
+                <Columns3 className="h-3.5 w-3.5" aria-hidden />
+                Columns
+              </button>
+              {showColumns && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-40 mt-1 w-48 rounded-xl border border-border bg-white p-2 shadow-lg"
                 >
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[key]}
-                    onChange={() =>
-                      setVisibleColumns((prev) => ({
-                        ...prev,
-                        [key]: !prev[key],
-                      }))
-                    }
-                    className="h-3.5 w-3.5 accent-[var(--color-accent)]"
-                  />
-                  {key.charAt(0).toUpperCase() + key.slice(1)}
-                </label>
-              ))}
+                  {Object.keys(DEFAULT_COLUMNS).map((key) => (
+                    <label
+                      key={key}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink hover:bg-surface"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[key]}
+                        onChange={() =>
+                          setVisibleColumns((prev) => ({
+                            ...prev,
+                            [key]: !prev[key],
+                          }))
+                        }
+                        className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+                      />
+                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => {
-            const withRevenue = leads.filter(
-              (l) => getRevenue(l).label !== "Unknown"
-            ).length;
-            notify(
-              `Revenue estimated for ${withRevenue}/${leads.length} leads on this page (heuristic from reviews + category)`
-            );
-            if (!visibleColumns.revenue) {
-              setVisibleColumns((prev) => ({ ...prev, revenue: true }));
-            }
-          }}
-        >
-          <Wallet className="h-4 w-4" aria-hidden />
-          Estimate revenue
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => {
-            updateFilters({ sort: "score", minScore: 70 });
-            notify("Showing scored leads ≥ 70 — our deterministic lead score");
-          }}
-        >
-          <Sparkles className="h-4 w-4" aria-hidden />
-          Lead scoring
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => {
-            updateFilters({ sort: "score" });
-            notify("Sorted by opportunity score (HOT → LOW)");
-          }}
-        >
-          <Gauge className="h-4 w-4" aria-hidden />
-          Rank by score
-        </button>
-      </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <QuickFilters filters={filters} onChange={updateFilters} />
-        {activeCount > 0 && (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-            Clear {activeCount} filter{activeCount === 1 ? "" : "s"}
-          </button>
+        <div className="flex min-h-[2.25rem] flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/50 py-1.5">
+          <QuickFilters filters={filters} onChange={updateFilters} />
+          <span className="inline-flex min-w-[4.5rem]">
+            {activeCount > 0 ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                Clear
+              </button>
+            ) : null}
+          </span>
+          <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+            <input
+              type="checkbox"
+              checked={hideSkipped}
+              onChange={(e) => setHideSkipped(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+            />
+            Hide skipped{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
+          </label>
+        </div>
+
+        {showFilters && (
+          <div className="border-t border-border/50 py-3">
+            <LeadFiltersPanel
+              filters={filters}
+              onChange={updateFilters}
+              onClear={resetFilters}
+            />
+          </div>
         )}
-        <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-sm text-ink-muted">
-          <input
-            type="checkbox"
-            checked={hideSkipped}
-            onChange={(e) => setHideSkipped(e.target.checked)}
-            className="h-4 w-4 accent-[var(--color-accent)]"
-          />
-          Hide skipped{hiddenCount > 0 ? ` (${hiddenCount})` : ""}
-        </label>
       </div>
-
-      {showFilters && (
-        <div className="mb-4">
-          <LeadFiltersPanel
-            filters={filters}
-            onChange={updateFilters}
-            onClear={resetFilters}
-          />
-        </div>
-      )}
 
       {error && (
         <div
           role="alert"
-          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger/30 bg-hot-bg px-4 py-3 text-sm"
+          className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-hot-bg px-4 py-3 text-sm"
         >
           <span className="font-medium text-danger">{error}</span>
           <button type="button" className="btn-secondary" onClick={() => void reload()}>
@@ -472,62 +442,89 @@ export function LeadsPage() {
         </div>
       )}
 
-      {/* Desktop table */}
+      {/* Desktop table — fixed layout keeps columns tight inside the panel */}
       <div
         aria-busy={loading}
-        className={`hidden overflow-x-auto rounded-xl border border-border bg-surface-elevated shadow-sm transition-opacity md:block ${
-          loading && data ? "opacity-60" : ""
-        }`}
+        className="relative mt-4 hidden overflow-hidden rounded-2xl border border-border bg-white md:block"
       >
-        <table className="min-w-full text-left">
-          <thead className="bg-header text-xs font-semibold uppercase tracking-wide text-white/90">
-            <tr>
-              <th className="w-10 px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleAllVisible}
-                  disabled={visible.length === 0}
-                  aria-label="Select all leads on this page"
-                  className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
+        {loading && data && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden">
+            <div className="table-progress" />
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed text-left">
+            <colgroup>
+              <col className="w-10" />
+              <col className="w-[28%]" />
+              {visibleColumns.industry && <col className="w-[14%]" />}
+              {visibleColumns.address && <col className="w-[14%]" />}
+              {visibleColumns.phone && <col className="w-[14%]" />}
+              {visibleColumns.website && <col className="w-[8%]" />}
+              {visibleColumns.rating && <col className="w-[10%]" />}
+              {visibleColumns.revenue && <col className="w-[12%]" />}
+              {visibleColumns.score && <col className="w-[10%]" />}
+              <col className="w-[12%]" />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-border bg-surface/80 text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                <th className="px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    disabled={visible.length === 0}
+                    aria-label="Select all leads on this page"
+                    className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
+                  />
+                </th>
+                <th className="px-2 py-3 font-semibold">Company</th>
+                {visibleColumns.industry && (
+                  <th className="px-2 py-3 font-semibold">Industry</th>
+                )}
+                {visibleColumns.address && (
+                  <th className="px-2 py-3 font-semibold">Address</th>
+                )}
+                {visibleColumns.phone && (
+                  <th className="px-2 py-3 font-semibold">Phone</th>
+                )}
+                {visibleColumns.website && (
+                  <th className="px-2 py-3 font-semibold">Web</th>
+                )}
+                {visibleColumns.rating && (
+                  <th className="px-2 py-3 font-semibold">Rating</th>
+                )}
+                {visibleColumns.revenue && (
+                  <th className="px-2 py-3 font-semibold">Revenue</th>
+                )}
+                {visibleColumns.score && (
+                  <th className="px-2 py-3 font-semibold">Score</th>
+                )}
+                <th className="px-2 py-3 font-semibold" />
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {loading &&
+                !data &&
+                Array.from({ length: 6 }, (_, i) => (
+                  <tr key={i} className="border-b border-border/80">
+                    <td colSpan={10} className="px-3 py-4">
+                      <div className="h-5 w-full animate-pulse rounded bg-border/60" />
+                    </td>
+                  </tr>
+                ))}
+              {visible.map((lead) => (
+                <LeadRow
+                  key={lead._id}
+                  lead={lead}
+                  selected={Boolean(selected[lead._id])}
+                  onToggleSelect={toggleSelect}
+                  visibleColumns={visibleColumns}
                 />
-              </th>
-              <th className="px-3 py-3">Company</th>
-              {visibleColumns.industry && (
-                <th className="px-3 py-3">Industry</th>
-              )}
-              {visibleColumns.address && <th className="px-3 py-3">Address</th>}
-              {visibleColumns.phone && <th className="px-3 py-3">Phone</th>}
-              {visibleColumns.website && <th className="px-3 py-3">Website</th>}
-              {visibleColumns.rating && <th className="px-3 py-3">Rating</th>}
-              {visibleColumns.revenue && (
-                <th className="px-3 py-3">Est. Revenue</th>
-              )}
-              {visibleColumns.score && <th className="px-3 py-3">Score</th>}
-              <th className="px-3 py-3">Triage</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white text-sm">
-            {loading &&
-              !data &&
-              Array.from({ length: 6 }, (_, i) => (
-                <tr key={i} className="border-b border-border/80">
-                  <td colSpan={10} className="px-3 py-4">
-                    <div className="h-5 w-full animate-pulse rounded bg-border/60" />
-                  </td>
-                </tr>
               ))}
-            {visible.map((lead) => (
-              <LeadRow
-                key={lead._id}
-                lead={lead}
-                selected={Boolean(selected[lead._id])}
-                onToggleSelect={toggleSelect}
-                visibleColumns={visibleColumns}
-              />
-            ))}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Mobile cards */}
@@ -607,63 +604,69 @@ export function LeadsPage() {
         Shortlist and skip choices are saved in this browser only.
       </p>
 
-      {/* Bulk action bar */}
       {selectedCount > 0 && (
         <div
           role="region"
           aria-label="Actions for selected leads"
-          className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-3xl flex-wrap items-center justify-between gap-2 rounded-xl bg-header px-4 py-3 text-white shadow-xl"
+          className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-2xl flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-white px-4 py-3 shadow-xl"
         >
-          <span className="text-sm font-semibold">{selectedCount} selected</span>
-          <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-ink">
+            {selectedCount} selected
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary px-2.5 py-1.5 text-xs"
               onClick={() => goToEnrichment("company")}
-              title="Website emails, social links, booking signals"
             >
-              <Sparkles className="h-4 w-4" aria-hidden />
-              Enrich company
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              Enrich
             </button>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary px-2.5 py-1.5 text-xs"
               onClick={() => goToEnrichment("owners")}
-              title="Find owners / LinkedIn for outreach"
             >
-              <UserSearch className="h-4 w-4" aria-hidden />
-              Get Owner Details
-            </button>
-            <button type="button" className="btn-secondary" onClick={exportSelected}>
-              <Download className="h-4 w-4" aria-hidden />
-              Export CSV
-            </button>
-            <button type="button" className="btn-secondary" onClick={() => void copyPhones()}>
-              <Copy className="h-4 w-4" aria-hidden />
-              Copy phones
+              <UserSearch className="h-3.5 w-3.5" aria-hidden />
+              Owners
             </button>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary px-2.5 py-1.5 text-xs"
+              onClick={exportSelected}
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              CSV
+            </button>
+            <button
+              type="button"
+              className="btn-secondary px-2.5 py-1.5 text-xs"
+              onClick={() => void copyPhones()}
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden />
+              Phones
+            </button>
+            <button
+              type="button"
+              className="btn-secondary px-2.5 py-1.5 text-xs"
               onClick={() => markSelected("shortlisted")}
             >
-              <Star className="h-4 w-4" aria-hidden />
+              <Star className="h-3.5 w-3.5" aria-hidden />
               Shortlist
             </button>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary px-2.5 py-1.5 text-xs"
               onClick={() => markSelected("skipped")}
             >
-              <EyeOff className="h-4 w-4" aria-hidden />
+              <EyeOff className="h-3.5 w-3.5" aria-hidden />
               Skip
             </button>
             <button
               type="button"
               aria-label="Clear selection"
-              title="Clear selection"
               onClick={() => setSelected({})}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/80 hover:bg-white/10"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:bg-surface"
             >
               <X className="h-4 w-4" aria-hidden />
             </button>

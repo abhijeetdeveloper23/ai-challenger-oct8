@@ -17,6 +17,14 @@ export function LeadCard({ lead }: Props) {
     <article className="panel group flex flex-col p-5 transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-md hover:shadow-accent/10">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {lead.ownerDetails?.ownerName && (
+            <p className="mb-0.5 text-xs font-semibold text-accent">
+              {lead.ownerDetails.ownerName}
+              {lead.ownerDetails.ownerTitle
+                ? ` · ${lead.ownerDetails.ownerTitle}`
+                : ""}
+            </p>
+          )}
           <h3 className="truncate text-lg font-bold text-ink">{lead.name}</h3>
           {lead.category && (
             <p className="mt-0.5 text-sm font-medium text-ink-muted">{lead.category}</p>

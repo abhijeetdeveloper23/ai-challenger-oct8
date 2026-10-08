@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { ExternalLink } from "lucide-react";
+import { ArrowUpRight, User } from "lucide-react";
 import type { Lead } from "../types/lead";
 import { ScoreBadge } from "./ScoreBadge";
 import { LeadStatusToggle } from "./LeadStatusToggle";
 import { useLeadStatuses } from "../utils/storage";
-import { confidenceStyles, getRevenue } from "../utils/revenue";
+import { getRevenue } from "../utils/revenue";
 
 interface Props {
   lead: Lead;
@@ -15,9 +15,9 @@ interface Props {
 
 function addressLine(lead: Lead): string {
   return (
-    [lead.address?.street, lead.address?.city, lead.address?.state]
-      .filter(Boolean)
-      .join(", ") || "—"
+    [lead.address?.city, lead.address?.state].filter(Boolean).join(", ") ||
+    lead.address?.street ||
+    "—"
   );
 }
 
@@ -29,17 +29,18 @@ export function LeadRow({
 }: Props) {
   const status = useLeadStatuses()[lead._id];
   const revenue = getRevenue(lead);
+  const owner = lead.ownerDetails?.ownerName?.trim();
 
   return (
     <tr
-      className={`border-b border-border/80 transition-colors ${
-        selected ? "bg-accent-soft/50" : "hover:bg-warm-soft/40"
-      } ${status === "skipped" ? "opacity-50" : ""}`}
+      className={`border-b border-border/60 transition-colors ${
+        selected ? "bg-accent-soft/40" : "hover:bg-surface/60"
+      } ${status === "skipped" ? "opacity-45" : ""}`}
     >
       <td
-        className={`w-10 px-3 py-3 align-top ${
+        className={`px-3 py-3 align-middle ${
           status === "shortlisted"
-            ? "shadow-[inset_3px_0_0_0_var(--color-accent)]"
+            ? "shadow-[inset_2px_0_0_0_var(--color-accent)]"
             : ""
         }`}
       >
@@ -48,36 +49,50 @@ export function LeadRow({
           checked={selected}
           onChange={() => onToggleSelect(lead)}
           aria-label={`Select ${lead.name}`}
-          className="mt-1 h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
+          className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
         />
       </td>
 
-      <td className="px-3 py-3 align-top">
+      <td className="max-w-0 px-2 py-3 align-middle">
+        {owner && (
+          <p className="mb-0.5 flex min-w-0 items-center gap-1 truncate text-xs font-semibold text-accent">
+            <User className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="truncate">
+              {owner}
+              {lead.ownerDetails?.ownerTitle
+                ? ` · ${lead.ownerDetails.ownerTitle}`
+                : ""}
+            </span>
+          </p>
+        )}
         <Link
           to={`/leads/${lead._id}`}
-          className="font-semibold text-ink no-underline hover:text-accent"
+          className="block truncate font-medium text-ink no-underline hover:text-accent"
+          title={lead.name}
         >
           {lead.name}
         </Link>
         {lead.primaryOpportunity && (
-          <p className="mt-1 text-xs text-accent">{lead.primaryOpportunity}</p>
+          <p className="mt-0.5 truncate text-xs text-ink-muted">
+            {lead.primaryOpportunity}
+          </p>
         )}
       </td>
 
       {visibleColumns.industry && (
-        <td className="px-3 py-3 align-top text-sm text-ink-muted">
+        <td className="truncate px-2 py-3 align-middle text-sm text-ink-muted">
           {lead.category || "—"}
         </td>
       )}
 
       {visibleColumns.address && (
-        <td className="max-w-[200px] px-3 py-3 align-top text-sm text-ink-muted">
-          <span className="line-clamp-2">{addressLine(lead)}</span>
+        <td className="truncate px-2 py-3 align-middle text-sm text-ink-muted">
+          {addressLine(lead)}
         </td>
       )}
 
       {visibleColumns.phone && (
-        <td className="px-3 py-3 align-top text-sm">
+        <td className="whitespace-nowrap px-2 py-3 align-middle text-sm">
           {lead.phone ? (
             <a
               href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}
@@ -86,68 +101,60 @@ export function LeadRow({
               {lead.phone}
             </a>
           ) : (
-            <span className="text-ink-muted">N/A</span>
+            <span className="text-ink-muted">—</span>
           )}
         </td>
       )}
 
       {visibleColumns.website && (
-        <td className="px-3 py-3 align-top text-sm">
+        <td className="px-2 py-3 align-middle text-sm">
           {lead.website ? (
             <a
               href={lead.website}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-accent no-underline hover:underline"
+              className="inline-flex items-center gap-0.5 text-accent no-underline hover:underline"
             >
               Site
-              <ExternalLink className="h-3 w-3" aria-hidden />
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
             </a>
           ) : (
-            <span className="text-ink-muted">N/A</span>
+            <span className="text-ink-muted">—</span>
           )}
         </td>
       )}
 
       {visibleColumns.rating && (
-        <td className="px-3 py-3 align-top text-sm text-ink">
-          {lead.rating != null ? (
-            <span>
-              {lead.rating}
-              <span className="text-ink-muted"> ({lead.reviewCount ?? 0})</span>
-            </span>
-          ) : (
-            <span className="text-ink-muted">N/A</span>
-          )}
+        <td className="whitespace-nowrap px-2 py-3 align-middle text-sm text-ink-muted">
+          {lead.rating != null
+            ? `${lead.rating} (${lead.reviewCount ?? 0})`
+            : "—"}
         </td>
       )}
 
       {visibleColumns.revenue && (
-        <td className="px-3 py-3 align-top text-sm">
-          <div className="font-medium text-ink">{revenue.label}</div>
-          <span
-            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${confidenceStyles[revenue.confidence]}`}
-            title={revenue.basis}
-          >
-            {revenue.confidence} confidence
-          </span>
+        <td
+          className="whitespace-nowrap px-2 py-3 align-middle text-sm text-ink-muted"
+          title={revenue.basis}
+        >
+          {revenue.label}
         </td>
       )}
 
       {visibleColumns.score && (
-        <td className="px-3 py-3 align-top">
+        <td className="px-2 py-3 align-middle">
           <ScoreBadge score={lead.leadScore} priority={lead.priority} />
         </td>
       )}
 
-      <td className="px-3 py-3 align-top">
-        <div className="flex items-center gap-2">
+      <td className="px-2 py-3 align-middle">
+        <div className="flex items-center justify-end gap-1">
           <LeadStatusToggle id={lead._id} name={lead.name} />
           <Link
             to={`/leads/${lead._id}`}
-            className="btn-secondary px-3 py-1.5 text-xs"
+            className="rounded-lg px-2 py-1 text-xs font-medium text-accent no-underline hover:bg-accent-soft"
           >
-            Review
+            Open
           </Link>
         </div>
       </td>

@@ -9,11 +9,10 @@ interface Preset {
   clear: Partial<LeadFilters>;
 }
 
-/** One-click versions of the filters a salesperson reaches for most. */
 const PRESETS: Preset[] = [
   {
     id: "hot",
-    label: "Hot leads",
+    label: "Hot",
     hint: "Score 85 and above",
     isActive: (f) => f.priority === "HOT",
     apply: { priority: "HOT" },
@@ -36,14 +35,6 @@ const PRESETS: Preset[] = [
     clear: { hasWebsite: undefined },
   },
   {
-    id: "no-booking",
-    label: "No online booking",
-    hint: "Have a site but no booking",
-    isActive: (f) => f.opportunity === "no-online-booking",
-    apply: { opportunity: "no-online-booking" },
-    clear: { opportunity: undefined },
-  },
-  {
     id: "phone",
     label: "Has phone",
     hint: "Ready to call",
@@ -51,17 +42,8 @@ const PRESETS: Preset[] = [
     apply: { hasPhone: true },
     clear: { hasPhone: undefined },
   },
-  {
-    id: "email",
-    label: "Has email",
-    hint: "Ready to email",
-    isActive: (f) => f.hasEmail === true,
-    apply: { hasEmail: true },
-    clear: { hasEmail: undefined },
-  },
 ];
 
-/** Filters the user can set, ignoring paging/sort/scope. */
 const USER_FILTER_KEYS: (keyof LeadFilters)[] = [
   "q",
   "minScore",
@@ -92,7 +74,7 @@ export function QuickFilters({ filters, onChange }: Props) {
     <div
       role="group"
       aria-label="Quick filters"
-      className="flex flex-wrap items-center gap-2"
+      className="flex flex-wrap items-center gap-1"
     >
       {PRESETS.map((preset) => {
         const active = preset.isActive(filters);

@@ -11,6 +11,7 @@ import {
 import { enrichCompanies, enrichOwners, fetchLeads } from "../services/api";
 import type { Lead } from "../types/lead";
 import { useToast } from "../components/Toast";
+import { EnrichPulse } from "../components/EnrichPulse";
 import { confidenceStyles } from "../utils/revenue";
 
 const MAX_SELECT = 25;
@@ -109,6 +110,17 @@ export function EnrichmentPage() {
   const [ownerRows, setOwnerRows] = useState<Lead[]>([]);
   const [companyRows, setCompanyRows] = useState<Lead[]>([]);
   const autoStarted = useRef(false);
+  const ownerSectionRef = useRef<HTMLElement>(null);
+
+  function scrollToOwnerSection() {
+    // Defer so the busy state / pulse can paint before scrolling
+    requestAnimationFrame(() => {
+      ownerSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,6 +170,7 @@ export function EnrichmentPage() {
         return;
       }
       setBusy("owners");
+      scrollToOwnerSection();
       try {
         const { leads: enriched, failed } = await enrichOwners(ids);
         mergeLeads(enriched);
@@ -492,10 +505,10 @@ export function EnrichmentPage() {
         </div>
 
         {busy === "company" && (
-          <div className="flex items-center gap-2 px-4 py-6 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            Scraping websites for {selectedCount} companies…
-          </div>
+          <EnrichPulse
+            label="Enriching company data"
+            count={selectedCount}
+          />
         )}
 
         {busy !== "company" && companyRows.length === 0 && (
@@ -565,7 +578,11 @@ export function EnrichmentPage() {
       </section>
 
       {/* Owner details */}
-      <section className="panel mt-6 overflow-hidden">
+      <section
+        ref={ownerSectionRef}
+        id="owner-details"
+        className="panel mt-6 scroll-mt-24 overflow-hidden"
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-ink">Owner Details</h2>
@@ -590,10 +607,10 @@ export function EnrichmentPage() {
         </div>
 
         {busy === "owners" && (
-          <div className="flex items-center gap-2 px-4 py-6 text-sm text-ink-muted">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            Looking up public owner signals for {selectedCount} companies…
-          </div>
+          <EnrichPulse
+            label="Finding owners & LinkedIn profiles"
+            count={selectedCount}
+          />
         )}
 
         {busy !== "owners" && ownerRows.length === 0 && (
