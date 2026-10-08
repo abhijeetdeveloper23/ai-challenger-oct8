@@ -1,0 +1,19 @@
+{
+  "name": "lead-intelligence",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lead Intelligence — find businesses worth contacting",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "lint": "npm run lint --prefix server && npm run lint --prefix client",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "start": "npm run start --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
