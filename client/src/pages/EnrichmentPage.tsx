@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -89,11 +89,12 @@ function downloadOwnerCsv(leads: Lead[]) {
 }
 
 export function EnrichmentPage() {
-  const [params] = useSearchParams();
+  const [params, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { notify } = useToast();
 
   const searchId = params.get("searchId") || undefined;
+  const action = params.get("action"); // "owners" | "company" from Results bulk bar
   const preselectIds = useMemo(
     () => (params.get("ids") || "").split(",").filter(Boolean),
     [params]
@@ -107,6 +108,7 @@ export function EnrichmentPage() {
   const [busy, setBusy] = useState<"owners" | "company" | null>(null);
   const [ownerRows, setOwnerRows] = useState<Lead[]>([]);
   const [companyRows, setCompanyRows] = useState<Lead[]>([]);
+  const autoStarted = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,16 +135,107 @@ export function EnrichmentPage() {
       setSelected(next);
       setOwnerRows(res.leads.filter(hasFoundOwner));
       setCompanyRows(res.leads.filter(hasCompanyEnrichment));
+      return Object.keys(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load companies");
+      return [] as string[];
     } finally {
       setLoading(false);
     }
   }, [searchId, preselectIds]);
 
+  const mergeLeads = useCallback((enriched: Lead[]) => {
+    setLeads((prev) => {
+      const map = new Map(enriched.map((l) => [l._id, l]));
+      return prev.map((l) => map.get(l._id) || l);
+    });
+  }, []);
+
+  const runOwnerEnrichment = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) {
+        notify("Select at least one company", "error");
+        return;
+      }
+      setBusy("owners");
+      try {
+        const { leads: enriched, failed } = await enrichOwners(ids);
+        mergeLeads(enriched);
+        const found = enriched.filter(hasFoundOwner);
+        setOwnerRows(found);
+        notify(
+          found.length === 0
+            ? `No public owners found for ${enriched.length} selected`
+            : failed > 0
+              ? `Found owners for ${found.length} of ${enriched.length}`
+              : `Owner details ready for ${found.length}`
+        );
+      } catch (err) {
+        notify(
+          err instanceof Error ? err.message : "Owner lookup failed",
+          "error"
+        );
+      } finally {
+        setBusy(null);
+      }
+    },
+    [mergeLeads, notify]
+  );
+
+  const runCompanyEnrichment = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) {
+        notify("Select at least one company", "error");
+        return;
+      }
+      setBusy("company");
+      try {
+        const { leads: enriched, failed } = await enrichCompanies(ids);
+        mergeLeads(enriched);
+        const done = enriched.filter(hasCompanyEnrichment);
+        setCompanyRows(done);
+        const withEmail = done.filter(
+          (l) => (l.companyEnrichment?.emails.length || 0) > 0
+        ).length;
+        notify(
+          failed > 0
+            ? `Company data updated for ${done.length - failed} of ${enriched.length}`
+            : `Enriched ${done.length} companies · ${withEmail} with email found`
+        );
+      } catch (err) {
+        notify(
+          err instanceof Error ? err.message : "Company enrichment failed",
+          "error"
+        );
+      } finally {
+        setBusy(null);
+      }
+    },
+    [mergeLeads, notify]
+  );
+
+  /** Load companies, then auto-run if Results sent action=owners|company. */
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      const ids = await load();
+      if (cancelled || autoStarted.current) return;
+      if ((action === "owners" || action === "company") && ids.length > 0) {
+        autoStarted.current = true;
+        // Drop action from URL so refresh doesn't re-fire the same job
+        const next = new URLSearchParams(params);
+        next.delete("action");
+        setSearchParams(next, { replace: true });
+        if (action === "owners") await runOwnerEnrichment(ids);
+        else await runCompanyEnrichment(ids);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally run once per searchId/ids/action arrival
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchId, preselectIds.join(","), action]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -191,66 +284,12 @@ export function EnrichmentPage() {
     });
   }
 
-  function mergeLeads(enriched: Lead[]) {
-    setLeads((prev) => {
-      const map = new Map(enriched.map((l) => [l._id, l]));
-      return prev.map((l) => map.get(l._id) || l);
-    });
+  async function runOwnerEnrichmentClick() {
+    await runOwnerEnrichment(selectedIds);
   }
 
-  async function runOwnerEnrichment() {
-    if (selectedCount === 0) {
-      notify("Select at least one company", "error");
-      return;
-    }
-    setBusy("owners");
-    try {
-      const { leads: enriched, failed } = await enrichOwners(selectedIds);
-      mergeLeads(enriched);
-      const found = enriched.filter(hasFoundOwner);
-      setOwnerRows(found);
-      notify(
-        found.length === 0
-          ? `No public owners found for ${enriched.length} selected`
-          : failed > 0
-            ? `Found owners for ${found.length} of ${enriched.length}`
-            : `Owner details ready for ${found.length}`
-      );
-    } catch (err) {
-      notify(
-        err instanceof Error ? err.message : "Owner lookup failed",
-        "error"
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function runCompanyEnrichment() {
-    if (selectedCount === 0) {
-      notify("Select at least one company", "error");
-      return;
-    }
-    setBusy("company");
-    try {
-      const { leads: enriched, failed } = await enrichCompanies(selectedIds);
-      mergeLeads(enriched);
-      const done = enriched.filter(hasCompanyEnrichment);
-      setCompanyRows(done);
-      const withEmail = done.filter((l) => (l.companyEnrichment?.emails.length || 0) > 0).length;
-      notify(
-        failed > 0
-          ? `Company data updated for ${done.length - failed} of ${enriched.length}`
-          : `Enriched ${done.length} companies · ${withEmail} with email found`
-      );
-    } catch (err) {
-      notify(
-        err instanceof Error ? err.message : "Company enrichment failed",
-        "error"
-      );
-    } finally {
-      setBusy(null);
-    }
+  async function runCompanyEnrichmentClick() {
+    await runCompanyEnrichment(selectedIds);
   }
 
   return (
@@ -412,7 +451,7 @@ export function EnrichmentPage() {
               type="button"
               className="btn-secondary"
               disabled={busy !== null || selectedCount === 0}
-              onClick={() => void runCompanyEnrichment()}
+              onClick={() => void runCompanyEnrichmentClick()}
               title="Scrape websites for email, phone, social links, booking signals"
             >
               {busy === "company" ? (
@@ -426,7 +465,7 @@ export function EnrichmentPage() {
               type="button"
               className="btn-primary"
               disabled={busy !== null || selectedCount === 0}
-              onClick={() => void runOwnerEnrichment()}
+              onClick={() => void runOwnerEnrichmentClick()}
               title="Look up owners / founders and LinkedIn profiles"
             >
               {busy === "owners" ? (

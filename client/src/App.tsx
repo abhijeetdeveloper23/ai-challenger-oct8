@@ -11,9 +11,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
-        <div className="flex min-h-screen flex-col">
+        <div className="flex flex-col">
           <Header />
-          <main className="flex-1">
+          {/* Full viewport of content before footer — keeps footer below the fold */}
+          <main className="min-h-[100vh]">
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/leads" element={<LeadsPage />} />
