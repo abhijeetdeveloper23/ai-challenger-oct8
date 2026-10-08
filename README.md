@@ -90,7 +90,7 @@ npm run dev
 | Variable | Purpose |
 |----------|---------|
 | `PORT` | API port (default `5001`) |
-| `CLIENT_URL` | CORS origin (default `http://localhost:5173`) |
+| `CLIENT_URL` | Frontend origin(s) for CORS — **no trailing slash** (default `http://localhost:5173`; comma-separate multiples) |
 | `MONGODB_URI` | MongoDB connection string |
 | `DEMO_MODE` | `true` → force demo dataset only |
 | `DISCOVERY_PROVIDERS` | Comma list, e.g. `serpapi,google_places,foursquare` |

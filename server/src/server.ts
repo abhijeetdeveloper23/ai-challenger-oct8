@@ -16,9 +16,26 @@ async function bootstrap() {
 
   app.set("trust proxy", 1);
   app.use(helmet());
+
+  // Browsers send Origin without a trailing slash; match exactly after normalize.
+  const allowedOrigins = env.CLIENT_URL.split(",").filter(Boolean);
   app.use(
     cors({
-      origin: env.CLIENT_URL,
+      origin(origin, callback) {
+        // Non-browser / same-origin tools (curl, health checks) send no Origin
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        log.warn("http", `CORS blocked origin: ${origin}`, {
+          allowed: allowedOrigins,
+        });
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      },
       credentials: true,
     })
   );

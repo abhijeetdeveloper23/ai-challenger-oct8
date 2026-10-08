@@ -6,7 +6,21 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.coerce.number().default(5001),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  CLIENT_URL: z.string().default("http://localhost:5173"),
+  /**
+   * Frontend origin(s) for CORS. Comma-separated allowed.
+   * Use origin only — no trailing slash (browsers never send one).
+   * Example: https://ai-challenger-oct8-z14n.vercel.app
+   */
+  CLIENT_URL: z
+    .string()
+    .default("http://localhost:5173")
+    .transform((v) =>
+      v
+        .split(",")
+        .map((s) => s.trim().replace(/\/+$/, ""))
+        .filter(Boolean)
+        .join(",")
+    ),
   MONGODB_URI: z.string().min(1),
   DEMO_MODE: z
     .string()
